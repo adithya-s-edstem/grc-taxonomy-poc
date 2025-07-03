@@ -250,12 +250,14 @@ const generateZodSchema = (formFields) => {
 
       case "date":
         fieldSchema = z.string();
+        if (field.required)
+          fieldSchema = fieldSchema.min(1, `${field.name} is required`);
 
         // Add date validations if they exist
         if (field.dateValidations) {
           fieldSchema = fieldSchema.refine(
             (date) => {
-              if (!date) return !field.required;
+              if (!date) return true; // Already handled by required validation above
 
               const selectedDate = new Date(date);
               const today = new Date();
@@ -291,7 +293,7 @@ const generateZodSchema = (formFields) => {
           if (field.dateValidations.greaterOrEqualTo) {
             fieldSchema = fieldSchema.refine(
               (date, ctx) => {
-                if (!date) return !field.required;
+                if (!date) return true;
 
                 const compareFieldValue =
                   ctx.parent[field.dateValidations.greaterOrEqualTo];
@@ -308,9 +310,6 @@ const generateZodSchema = (formFields) => {
             );
           }
         }
-
-        if (field.required)
-          fieldSchema = fieldSchema.min(1, `${field.name} is required`);
         break;
 
       case "file":
