@@ -212,6 +212,7 @@ const generateZodSchema = (formFields) => {
 
   formFields.forEach((field) => {
     let fieldSchema;
+    if (!field.enabled) return;
 
     switch (field.type) {
       case "text":
@@ -249,6 +250,65 @@ const generateZodSchema = (formFields) => {
 
       case "date":
         fieldSchema = z.string();
+
+        // Add date validations if they exist
+        if (field.dateValidations) {
+          fieldSchema = fieldSchema.refine(
+            (date) => {
+              if (!date) return !field.required;
+
+              const selectedDate = new Date(date);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+
+              // Check future dates rule
+              if (
+                field.dateValidations.allowFutureDates === false &&
+                selectedDate > today
+              ) {
+                return false;
+              }
+
+              // Check past dates rule
+              if (
+                field.dateValidations.allowPastDates === false &&
+                selectedDate < today
+              ) {
+                return false;
+              }
+
+              return true;
+            },
+            {
+              message:
+                field.dateValidations.allowFutureDates === false
+                  ? `${field.name} cannot be in the future`
+                  : `${field.name} cannot be in the past`,
+            }
+          );
+
+          // Add greater than or equal to validation
+          if (field.dateValidations.greaterOrEqualTo) {
+            fieldSchema = fieldSchema.refine(
+              (date, ctx) => {
+                if (!date) return !field.required;
+
+                const compareFieldValue =
+                  ctx.parent[field.dateValidations.greaterOrEqualTo];
+                if (!compareFieldValue) return true;
+
+                const selectedDate = new Date(date);
+                const compareDate = new Date(compareFieldValue);
+
+                return selectedDate >= compareDate;
+              },
+              {
+                message: `${field.name} must be on or after the reference date`,
+              }
+            );
+          }
+        }
+
         if (field.required)
           fieldSchema = fieldSchema.min(1, `${field.name} is required`);
         break;
@@ -304,6 +364,7 @@ const generateZodSchema = (formFields) => {
 
 // Field component renderer
 const FieldRenderer = ({ field, control, watch, errors }) => {
+  if (!field.enabled) return;
   const [showTooltip, setShowTooltip] = useState(false);
 
   const renderField = () => {
